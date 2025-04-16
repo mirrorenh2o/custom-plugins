@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Packages
+Bundle-SymbolicName: org.ruyisdk.packages
+Bundle-Version: 1.0.0.qualifier
+Automatic-Module-Name: org.ruyisdk.packages
+Bundle-RequiredExecutionEnvironment: JavaSE-21

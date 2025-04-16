@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Devices
+Bundle-SymbolicName: org.ruyisdk.devices;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: org.ruyisdk.devices.Activator
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ org.eclipse.jface;bundle-version="3.35.0",
+ org.ruyisdk.core;bundle-version="1.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Automatic-Module-Name: org.ruyisdk.devices
+Bundle-ActivationPolicy: lazy

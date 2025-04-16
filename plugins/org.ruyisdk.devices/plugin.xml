@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            category="org.ruyisdk"
+            class="org.ruyisdk.devices.views.DevicesManagerView"
+            id="org.ruyisdk.devices.views.DevicesView"
+            name="RISC-V Devices"
+            restorable="true">
+      </view>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="org.ruyisdk.devices.handlers.OpenDevicesHandler"
+            id="org.ruyisdk.devices.commands.open"
+            name="Open RISC-V Devices View">
+      </command>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+         <menu
+               id="org.ruyisdk.menus.ruyisdk"
+               label="RuyiSDK">
+            <command
+                  commandId="org.ruyisdk.devices.commands.open"
+                  label="Manage Devices"
+                  style="push">
+            </command>
+         </menu>
+      </menuContribution>
+   </extension>
+
+</plugin>
