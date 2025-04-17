@@ -1,8 +1,6 @@
 package org.ruyisdk.devices.views;
 
-import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
-import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -20,18 +18,19 @@ public class DeviceDialog extends TitleAreaDialog {
     public DeviceDialog(Shell parentShell, Device device) {
         super(parentShell);
         this.device = device;
+        this.titleText = device == null ? "Add New Device" : "Edit Device";
     }
     
-//    @Override
-//    protected void configureShell(Shell shell) {
-//        super.configureShell(shell);
-//        shell.setText(device.getName() == null ? "Add New Device" : "Edit Device");
-//        this.titleText = "Add New Device";
-//    }
+    @Override
+    protected void configureShell(Shell shell) {
+        super.configureShell(shell);
+        shell.setText("Device Manage"); // 这是窗口标题栏文字（不是对话框内容区的标题）
+    }
+    
     
     @Override
     protected Control createDialogArea(Composite parent) {
-    	setTitle("Add New Device");
+    	setTitle(this.titleText );
         Composite area = (Composite) super.createDialogArea(parent);
         Composite container = new Composite(area, SWT.NONE);
         container.setLayout(new GridLayout(2, false));

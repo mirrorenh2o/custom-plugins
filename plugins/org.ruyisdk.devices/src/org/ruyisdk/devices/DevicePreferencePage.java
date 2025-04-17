@@ -43,8 +43,8 @@ public class DevicePreferencePage extends PreferencePage implements IWorkbenchPr
 		// 设置父容器的布局为 2 列
 		container.setLayout(new GridLayout(2, false));
 
-		Label contentLabel = new Label(container, SWT.NONE);
-		contentLabel.setText("设备管理");
+//		Label contentLabel = new Label(container, SWT.NONE);
+//		contentLabel.setText("设备管理");
 
 		// 提示信息
 		infoLabel = new Label(container, SWT.NONE);
@@ -63,11 +63,12 @@ public class DevicePreferencePage extends PreferencePage implements IWorkbenchPr
 		table.setLinesVisible(true);
 
 		// 添加表头
-		String[] columnNames = { "开发板型号", "SOC", "厂商", "版本", "状态" };
+//		String[] columnNames = { "开发板型号", "SOC", "厂商", "版本", "状态" };
+		String[] columnNames = { "Name", "SOC", "Vendor", "Version", "Default" };
 		for (String columnName : columnNames) {
 			TableColumn column = new TableColumn(table, SWT.NONE);
 			column.setText(columnName);
-			column.setWidth(100);
+			column.setWidth(120);
 		}
 
 		// 设置内容提供器和标签提供器
@@ -124,9 +125,9 @@ public class DevicePreferencePage extends PreferencePage implements IWorkbenchPr
 		}
 
 		// 自动调整列宽
-		for (TableColumn column : tableViewer.getTable().getColumns()) {
-			column.pack();
-		}
+//		for (TableColumn column : tableViewer.getTable().getColumns()) {
+//			column.pack();
+//		}
 	}
 
 	/**

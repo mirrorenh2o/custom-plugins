@@ -14,7 +14,7 @@ public class DeviceLabelProvider extends LabelProvider implements ITableLabelPro
             case 1: return device.getChip();
             case 2: return device.getVendor();
             case 3: return device.getVersion();
-            case 4: return device.isDefault() ? "默认开发板" : "";
+            case 4: return device.isDefault() ? "Default" : "";
             default: return "";
         }
     }
