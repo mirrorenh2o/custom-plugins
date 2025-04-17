@@ -46,7 +46,7 @@ public class DevicesManagerView extends ViewPart {
 		for (String columnName : columnNames) {
 			TableColumn column = new TableColumn(tableViewer.getTable(), SWT.NONE);
 			column.setText(columnName);
-			column.setWidth(60);
+			column.setWidth(100);
 		}
 
 		// 设置内容提供器和标签提供器

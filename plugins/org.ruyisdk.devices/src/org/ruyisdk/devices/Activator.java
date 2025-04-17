@@ -4,6 +4,7 @@ import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 import org.ruyisdk.core.console.ConsoleManager;
 import org.ruyisdk.core.console.RuyiSDKConsole;
+import org.ruyisdk.devices.DevicePreferences;
 
 /**
  * The activator class controls the plug-in life cycle
@@ -27,8 +28,9 @@ public class Activator extends AbstractUIPlugin {
 		super.start(context);
 		plugin = this;
 		
-		// (可选)启动时自动打开控制台
-        ConsoleManager.showConsole();
+//		// (可选)启动时自动打开控制台
+//        ConsoleManager.showConsole();
+        
         RuyiSDKConsole.getInstance().logInfo("Devices Plugin " + getBundle().getVersion()+" Activated !");
 	}
 

@@ -16,4 +16,3 @@ Require-Bundle: org.eclipse.ui;bundle-version="3.206.100",
  org.eclipse.ui.workbench;bundle-version="3.133.0"
 Bundle-ClassPath: .,
  icons/
- 
