@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+  
+  <!-- 插件基本信息 -->
+<extension id="ruyisdk" point="org.eclipse.core.runtime.applications">
+    <application>
+      <run class="org.ruyisdk.ruyi.Activator"/>
+    </application>
+  </extension>
+
+  <!-- 启动时自动检查 -->
+  <extension point="org.eclipse.ui.startup">
+    <startup class="org.ruyisdk.ruyi.RuyiStartupCheckJob" />
+  </extension>
+
+  <!-- 添加首选项页面 -->
+  <extension point="org.eclipse.ui.preferencePages">
+    <page
+      id="org.ruyisdk.ruyi.preferences"
+      name="Ruyi SDK"
+      class="org.ruyisdk.ruyi.preferences.RuyiPreferencePage"
+      category="org.eclipse.ui.preferencePages.Workbench">
+    </page>
+  </extension>
+
+  <!-- 添加菜单项 -->
+  <extension point="org.eclipse.ui.menus">
+    <menuContribution
+      locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+      <menu
+        id="org.ruyisdk.ruyi.menu"
+        label="Ruyi SDK"
+        mnemonic="R">
+        <command
+          commandId="org.ruyisdk.ruyi.commands.install"
+          id="org.ruyisdk.ruyi.menu.install"
+          label="安装/更新 Ruyi SDK"
+          tooltip="安装或更新 Ruyi SDK 工具链">
+        </command>
+        <command
+          commandId="org.ruyisdk.ruyi.commands.checkVersion"
+          id="org.ruyisdk.ruyi.menu.checkVersion"
+          label="检查版本"
+          tooltip="检查 Ruyi SDK 版本">
+        </command>
+      </menu>
+    </menuContribution>
+  </extension>
+
+  <!-- 命令定义 -->
+  <extension point="org.eclipse.ui.commands">
+    <command
+      id="org.ruyisdk.ruyi.commands.install"
+      name="安装/更新 Ruyi SDK">
+    </command>
+    <command
+      id="org.ruyisdk.ruyi.commands.checkVersion"
+      name="检查 Ruyi SDK 版本">
+    </command>
+  </extension>
+
+  <!-- 命令处理器 -->
+  <extension point="org.eclipse.ui.handlers">
+    <handler
+      class="org.ruyisdk.ruyi.handlers.InstallRuyiHandler"
+      commandId="org.ruyisdk.core.commands.install">
+    </handler>
+    <handler
+      class="org.ruyisdk.ruyi.handlers.CheckVersionHandler"
+      commandId="org.ruyisdk.core.commands.checkVersion">
+    </handler>
+  </extension>
+
+  <!-- 状态栏贡献 -->
+  <extension point="org.eclipse.ui.statusHandlers">
+    <statusHandler
+      class="org.ruyisdk.ruyi.status.RuyiStatusHandler"
+      id="org.ruyisdk.ruyi.status">
+    </statusHandler>
+  </extension>
+
+  <!-- 日志记录器 -->
+  <extension point="org.eclipse.core.runtime.status">
+    <statusTranslator
+      class="org.ruyisdk.ruyi.log.RuyiStatusTranslator"
+      id="org.ruyisdk.ruyi.logger">
+    </statusTranslator>
+  </extension>
+
+</plugin>

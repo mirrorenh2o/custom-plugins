@@ -13,9 +13,10 @@ import java.io.OutputStream;
 import org.ruyisdk.core.basedir.XDGDirs;
 import org.ruyisdk.devices.model.Device;
 import org.ruyisdk.core.console.RuyiSDKConsole;
+import org.ruyisdk.core.config.Constants;
 
 public class PropertiesService {
-	private static final Path FILE_PATH = Paths.get(XDGDirs.getConfigDir("ruyisdkide").toString(), "devices.properties");
+	private static final Path FILE_PATH = Paths.get(XDGDirs.getConfigDir(Constants.AppInfo.AppDir).toString(), Constants.ConfigFile.DeviceProperties);  //devices.properties
 	private static final String DEFAULT_DEVICE_KEY = "default_device";
 	 
 	public List<Device> loadDevices() {

@@ -2,10 +2,12 @@ package org.ruyisdk.core.basedir;
 
 import java.nio.file.Path;
 
+import org.ruyisdk.core.config.Constants;
+
 public class TextXDGDir {
 	
     public static void main(String[] args) {
-        String appName = "ruyisdkide";
+    	String appName = Constants.AppInfo.AppDir;
 
         // 获取 XDG 目录
         Path configDir = XDGDirs.getConfigDir(appName);
