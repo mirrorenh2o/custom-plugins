@@ -1,4 +1,4 @@
-package org.ruyisdk.devices;
+package org.ruyisdk.devices.views;
 
 import org.eclipse.jface.preference.*;
 import org.eclipse.jface.viewers.*;
@@ -7,10 +7,11 @@ import org.eclipse.swt.layout.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
+import org.ruyisdk.devices.Activator;
 import org.ruyisdk.devices.model.Device;
 import org.ruyisdk.devices.providers.DeviceLabelProvider;
 import org.ruyisdk.devices.services.DeviceService;
-import org.ruyisdk.devices.views.DeviceDialog;
+
 import java.util.List;
 import org.eclipse.jface.window.Window;
 

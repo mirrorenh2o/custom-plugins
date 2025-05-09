@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.*;
 
 import org.ruyisdk.core.config.Constants;
+import org.ruyisdk.ruyi.services.RuyiProperties;
 
 public class RuyiFileUtils {
 	
@@ -28,7 +29,18 @@ public class RuyiFileUtils {
 	    
 	    return path;
 	}
-    
+	
+	// 如果配置文件中没有设置 ruyi.install.path，则返回程序默认设置 Constants.Ruyi.INSTALL_PATH
+	public static String getInstallPath() {
+		String path = RuyiProperties.getInstallPath();
+		System.out.println("Ruyi install path set by the user is :" + path);
+		if (path == null || path.trim().isEmpty()) {
+			path = getDefaultInstallPath().toString();
+		}
+		System.out.println("Ruyi install path using default set : " + path);
+		return path;
+	}
+	
     public static boolean ensureDirectoryExists(String path) throws IOException {
         Path dirPath = Paths.get(path);
         if (!Files.exists(dirPath)) {

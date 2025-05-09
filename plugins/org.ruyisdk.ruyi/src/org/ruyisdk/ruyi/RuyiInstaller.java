@@ -11,9 +11,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.ruyisdk.core.config.Constants;
-import org.ruyisdk.core.ruyi.model.RuyiManager;
 import org.ruyisdk.core.ruyi.model.RuyiVersion;
 import org.ruyisdk.core.ruyi.model.SystemInfo;
+import org.ruyisdk.ruyi.services.RuyiManager;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 public class RuyiInstaller {

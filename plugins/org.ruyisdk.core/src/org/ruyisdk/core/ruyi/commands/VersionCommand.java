@@ -7,7 +7,6 @@ import org.ruyisdk.core.ruyi.RuyiException;
  */
 public class VersionCommand extends RuyiCommand {
     private static final String VERSION_COMMAND = "ruyi -V";
-    private static final String RELEASES_URL = "https://mirror.iscas.ac.cn/ruyisdk/ruyi/releases/";
 
     public static boolean checkInstalled() {
         try {

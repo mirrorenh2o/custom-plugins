@@ -6,8 +6,8 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Display;
-import org.ruyisdk.core.ruyi.model.RuyiManager;
 import org.ruyisdk.core.ruyi.model.RuyiVersion;
+import org.ruyisdk.ruyi.services.RuyiManager;
 import org.ruyisdk.ruyi.views.RuyiInstallDialog;
 import org.eclipse.jface.window.Window;
 

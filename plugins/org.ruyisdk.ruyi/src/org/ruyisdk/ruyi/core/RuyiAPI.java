@@ -7,6 +7,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import org.json.JSONObject;
 import org.ruyisdk.core.ruyi.model.RuyiReleaseInfo;
+import org.ruyisdk.core.ruyi.model.RuyiVersion;
 import org.ruyisdk.core.ruyi.model.SystemInfo;
 
 /**
@@ -22,7 +23,7 @@ public class RuyiAPI {
      * @return 结构化版本信息
      * @throws RuyiAPIException 当API请求或数据处理失败时抛出
      */
-    public static RuyiReleaseInfo getLatestRelease(String osArch) throws RuyiAPIException {
+    public static RuyiReleaseInfo getLatestRelease(String osArch) throws RuyiAPIException  {
         try {
             JSONObject response = sendGetRequest("/releases/latest-pm");
             JSONObject stable = response.getJSONObject("channels")
@@ -48,7 +49,7 @@ public class RuyiAPI {
             String version = stable.getString("version");
             String filename = urls[0].split(version+"/")[1];
             return new RuyiReleaseInfo(
-            	version,
+            	RuyiVersion.parse(version),
                 stable.getString("channel"),
                 filename,
                 urls[0],  // GitHub URL

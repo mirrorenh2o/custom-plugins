@@ -1,126 +1,74 @@
 package org.ruyisdk.ruyi.jobs;
 
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.SubMonitor;
-import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.swt.widgets.Display;
+import org.eclipse.core.runtime.OperationCanceledException;
+import org.ruyisdk.core.ruyi.model.CheckResult;
+import org.ruyisdk.core.ruyi.model.RuyiReleaseInfo;
+import org.ruyisdk.core.ruyi.model.RuyiVersion;
+import org.ruyisdk.core.ruyi.model.SystemInfo;
 import org.ruyisdk.ruyi.Activator;
-import org.ruyisdk.ruyi.core.RuyiVersionChecker;
-import org.ruyisdk.ruyi.core.VersionCheckResult;
-import org.ruyisdk.ruyi.ui.dialogs.RuyiInstallWizard;
-import org.ruyisdk.ruyi.ui.dialogs.RuyiUpdateDialog;
+import org.ruyisdk.ruyi.services.RuyiManager;
 import org.ruyisdk.ruyi.util.RuyiLogger;
 
-public class CheckRuyiJob extends Job {
-    private static final String PLUGIN_ID = "org.ruyisdk.ruyi";
-    private final RuyiLogger logger;
-    
-    public CheckRuyiJob() {
-        super("Checking Ruyi Installation");
-        this.logger = Activator.getDefault().getLogger();
-        setUser(true); // 显示在进度对话框中
-        setPriority(Job.SHORT); // 高优先级任务
-    }
+/**
+ * 执行Ruyi环境检测的任务
+ */
+public class CheckRuyiJob {
+    private static final RuyiLogger logger = Activator.getDefault().getLogger();
 
-    @Override
-	public IStatus run(IProgressMonitor monitor) {
-        SubMonitor subMonitor = SubMonitor.convert(monitor, "Checking Ruyi environment", 3);
-        
+    public CheckResult runCheck(IProgressMonitor monitor) {
         try {
-            // 阶段1: 检查安装状态 (1/3工作量)
-            subMonitor.subTask("Checking installation status");
-            boolean isInstalled = checkInstallation(subMonitor.split(1));
+            monitor.beginTask("Checking Ruyi environment", 3);
             
-            if (!isInstalled) {
-                logger.logInfo("Ruyi is not installed");
-                return promptInstallation();
+            // 步骤1: 检查是否安装
+            monitor.subTask("Checking installation");
+            if (!isInstalled()) {
+                return CheckResult.needInstall("Ruyi is not installed");
+            }
+            monitor.worked(1);
+            
+            // 步骤2: 获取当前版本
+            monitor.subTask("Detecting current version");
+            RuyiVersion current = getInstalledVersion();
+            monitor.worked(1);
+            
+            // 步骤3: 检查新版本
+            monitor.subTask("Checking latest version");
+            RuyiVersion latest = getLatestRelease();
+            
+            if (latest !=null && current.compareTo(latest) < 0) {
+                return CheckResult.needUpgrade(
+                    current,
+                    latest,
+                    String.format("New version available: %s (current: %s)", 
+                                latest.toString(), current.toString())
+                );
             }
             
-            // 阶段2: 检查版本信息 (1/3工作量)
-            subMonitor.subTask("Checking version information");
-            VersionCheckResult versionResult = checkVersion(subMonitor.split(1));
-            
-            // 阶段3: 处理检查结果 (1/3工作量)
-            subMonitor.subTask("Processing results");
-            return handleVersionResult(versionResult, subMonitor.split(1));
+            return CheckResult.ok();
+        } catch (OperationCanceledException e) {
+            logger.logInfo("Version check cancelled");
+            throw e;
         } catch (Exception e) {
-            logger.logError("Error during Ruyi check", e);
-            return new Status(IStatus.ERROR, PLUGIN_ID, "Failed to check Ruyi status", e);
+            logger.logError("Version check failed", e);
+            throw new RuntimeException("Check failed: " + e.getMessage(), e);
         } finally {
-            if (monitor != null) {
-                monitor.done();
-            }
+            monitor.done();
         }
     }
 
-    private boolean checkInstallation(IProgressMonitor monitor) throws Exception {
-        SubMonitor subMonitor = SubMonitor.convert(monitor, 1);
-        try {
-            return Activator.getDefault()
-                .getRuyiCore()
-                .getInstallManager()
-                .isInstalled();
-        } finally {
-            subMonitor.done();
-        }
+    private boolean isInstalled() {
+    	System.out.println("Ruyi is installed ? "+RuyiManager.isRuyiInstalled());
+        return RuyiManager.isRuyiInstalled();
     }
 
-    private VersionCheckResult checkVersion(IProgressMonitor monitor) throws Exception {
-        SubMonitor subMonitor = SubMonitor.convert(monitor, 1);
-        try {
-            return Activator.getDefault()
-                .getRuyiCore()
-                .getVersionChecker()
-                .checkVersion(subMonitor);
-        } finally {
-            subMonitor.done();
-        }
+    private RuyiVersion getInstalledVersion() {
+    	System.out.println("Ruyi is installed ? "+RuyiManager.isRuyiInstalled());
+        return RuyiManager.getInstalledVersion();
     }
 
-    private IStatus promptInstallation() {
-        Display.getDefault().asyncExec(() -> {
-            RuyiInstallWizard wizard = new RuyiInstallWizard();
-            wizard.open();
-        });
-        return new Status(IStatus.INFO, PLUGIN_ID, "Ruyi not installed, launching wizard");
-    }
-
-    private IStatus handleVersionResult(VersionCheckResult result, IProgressMonitor monitor) {
-        SubMonitor subMonitor = SubMonitor.convert(monitor, 1);
-        try {
-            if (result.needsUpdate()) {
-                Display.getDefault().asyncExec(() -> {
-                    RuyiUpdateDialog dialog = new RuyiUpdateDialog(
-                        Display.getDefault().getActiveShell(), 
-                        result.getLocalVersion(), 
-                        result.getLatestVersion()
-//                        result.getChangelog()
-                        );
-                    dialog.open();
-                });
-//             // 在CheckRuyiJob的handleVersionResult方法中：
-//                Display.getDefault().asyncExec(() -> {
-//                    MessageDialog.openInformation(
-//                        Display.getDefault().getActiveShell(),
-//                        "Ruyi Check Complete",
-//                        result.getMessage());
-//                });
-                return new Status(IStatus.INFO, PLUGIN_ID, 
-                    "Update available: " + result.getMessage());
-            }
-            
-            logger.logInfo("Ruyi version check completed: " + result.getMessage());
-            return Status.OK_STATUS;
-        } finally {
-            subMonitor.done();
-        }
-    }
-
-    @Override
-    protected void canceling() {
-        super.canceling();
-        logger.logInfo("Ruyi installation check was cancelled");
+    private RuyiVersion getLatestRelease() {
+    	System.out.println("Ruyi has new version: "+RuyiManager.getLatestVersion());
+        return RuyiManager.getLatestVersion();
     }
 }

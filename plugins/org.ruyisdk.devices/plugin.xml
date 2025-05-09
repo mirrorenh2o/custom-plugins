@@ -38,15 +38,13 @@
 	</extension>-->
 
 	<extension point="org.eclipse.ui.preferencePages">
-		<category
-			id="org.ruyisdk.devices.preferenceCategory"
-			name="RuyiSDK" />
+		<!-- 第二级：Device Management -->
 		<page
-			class="org.ruyisdk.devices.DevicePreferencePage"
+			class="org.ruyisdk.devices.views.DevicePreferencePage"
 			id="org.ruyisdk.devices.preferencePage"
 			name="Device Management"
-			category="org.ruyisdk.devices.preferenceCategory">
+			category="org.ruyisdk.preferences.root">
 		</page>
 	</extension>
-
+	
 </plugin>

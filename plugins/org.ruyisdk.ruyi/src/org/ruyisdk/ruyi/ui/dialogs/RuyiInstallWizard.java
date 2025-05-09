@@ -1,96 +1,213 @@
 package org.ruyisdk.ruyi.ui.dialogs;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.io.IOException;
 
-import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.wizard.*;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.SWTException;
-import org.eclipse.swt.browser.Browser;
-import org.eclipse.swt.events.MouseAdapter;
-import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.DisposeEvent;
+import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Cursor;
-import org.eclipse.swt.layout.*;
-import org.eclipse.swt.program.Program;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Font;
+import org.eclipse.swt.graphics.FontData;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
-import org.ruyisdk.core.config.Constants;
-import org.ruyisdk.core.ruyi.model.RuyiManager;
-import org.ruyisdk.core.ruyi.model.RuyiReleaseInfo;
-import org.ruyisdk.core.ruyi.model.RuyiVersion;
-import org.ruyisdk.core.ruyi.model.SystemInfo;
 import org.ruyisdk.core.ruyi.model.RepoConfig;
+import org.ruyisdk.core.ruyi.model.RuyiVersion;
 import org.ruyisdk.ruyi.Activator;
-import org.ruyisdk.ruyi.core.RuyiAPI;
 import org.ruyisdk.ruyi.core.RuyiInstallManager;
+import org.ruyisdk.ruyi.preferences.RepoConfigPreference;
+import org.ruyisdk.ruyi.preferences.RuyiInstallPathPreference;
+import org.ruyisdk.ruyi.preferences.TelemetryPreference;
+import org.ruyisdk.ruyi.services.RuyiProperties;
 import org.ruyisdk.ruyi.ui.widgets.InstallProgressComposite;
 import org.ruyisdk.ruyi.ui.widgets.VersionCompareComposite;
 import org.ruyisdk.ruyi.util.RuyiLogger;
+import org.ruyisdk.ruyi.util.StatusUtil;
 
+// Ruyi安装/升级向导
 public class RuyiInstallWizard extends Wizard {
-    private final RuyiInstallManager installManager;
-    private final RuyiLogger logger;
+    public enum Mode { INSTALL, UPGRADE }  // 向导运行模式:INSTALL全新安装模式,UPGRADE升级现有安装模式
     
-    private WelcomePage welcomePage;
-    private InstallationCheckPage checkPage;
-    private VersionComparisonPage versionPage;
-    private ConfigurationPage configPage;
-    private InstallationPage installPage;
-    private CompletionPage completionPage;
-
-    public RuyiInstallWizard() {
-        this(Activator.getDefault().getRuyiCore().getInstallManager(),
-        		Activator.getDefault().getLogger());
+    private final Mode mode;
+    private final RuyiVersion currentVersion;
+    private final RuyiVersion newVersion;
+    
+    public static void openForInstall() {
+        new RuyiInstallWizard(Mode.INSTALL, null, null).open();
     }
-
-    public RuyiInstallWizard(RuyiInstallManager installManager, RuyiLogger logger) {
-        this.installManager = installManager;
-        this.logger = logger;
+    
+    public static void openForUpgrade(RuyiVersion current, RuyiVersion latest) {
+        new RuyiInstallWizard(Mode.UPGRADE, current, latest).open();
+    }
+	    
+	 // 私有构造方法
+    private RuyiInstallWizard(Mode mode, RuyiVersion currentVersion, RuyiVersion newVersion) {
+        this.mode = mode;
+        this.currentVersion = currentVersion;
+        this.newVersion = newVersion;
         setNeedsProgressMonitor(true);
-        setWindowTitle("Ruyi Installation Wizard");
+        
+        // 根据模式设置不同标题
+        setWindowTitle(mode == Mode.INSTALL ? 
+        		"Ruyi Installation Wizard" : "Ruyi Upgrade Wizard");
     }
-
+    
     @Override
     public void addPages() {
-        welcomePage = new WelcomePage();
-        checkPage = new InstallationCheckPage(installManager, logger);
-        versionPage = new VersionComparisonPage(installManager, logger);
-        configPage = new ConfigurationPage(installManager, logger);
-        installPage = new InstallationPage(installManager, logger);
-        completionPage = new CompletionPage(installManager, logger);
+//        addPage(new WelcomePage(mode));
+//        if (mode == Mode.UPGRADE) {
+//            addPage(new VersionComparisonPage(currentVersion, newVersion));
+//        }
         
-        addPage(welcomePage);
-        addPage(checkPage);
-        addPage(versionPage);
-        addPage(configPage);
-        addPage(installPage);
-        addPage(completionPage);
+        addPage(new CheckResultPage(mode));
+        addPage(new PreparePage(mode));
+        addPage(new ConfigurationPage());
+        addPage(new InstallationPage(mode));
+        addPage(new CompletionPage(mode));
     }
 
     @Override
     public boolean performFinish() {
-        return installPage.performFinish();
+        return ((InstallationPage)getPage("installationPage")).performFinish();
     }
     
     public void open() {
-        WizardDialog dialog = new WizardDialog(Display.getDefault().getActiveShell(), this);
+        WizardDialog dialog = new WizardDialog(
+            Display.getDefault().getActiveShell(), 
+            this
+        );
+        dialog.setMinimumPageSize(600, 400);
         dialog.open();
     }
 
-    // ========== 向导页面内部类 ==========
+    //========================各向导页面的内部类实现====================//
+    private class CheckResultPage extends WizardPage {
+        private final Mode mode;
+        private Button dontCheckAgainCheckbox;
+//        private Button proceedButton;
+//        private Button laterButton;
+
+        public CheckResultPage(Mode mode) {
+            super("checkResultPage");
+            this.mode = mode;
+            setTitle(mode == Mode.INSTALL ? 
+                "Ruyi Installation Required" : "Ruyi Upgrade Available");
+//            setDescription("Review the detection results before proceeding");
+        }
+        
+        @Override
+        public void createControl(Composite parent) {
+            Composite container = new Composite(parent, SWT.NONE);
+            container.setLayout(new GridLayout(1, false));
+
+            // 信息展示区域
+            Label infoLabel = new Label(container, SWT.WRAP);
+            infoLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+            String showtext = mode == Mode.INSTALL ?
+                    "Ruyi package manager (ruyi command) not detected.  \n" :
+                    String.format("New Ruyi version %s available (current: %s).  \n",
+                        newVersion, currentVersion);
+            infoLabel.setText(showtext);
+            
+         
+            FontData[] fontData = infoLabel.getFont().getFontData(); // 获取当前字体数据
+            // 修改字体数据，设置字体名称和大小
+            for (FontData fd : fontData) {
+                fd.setName("Arial"); // 设置字体名称
+                fd.setHeight(12); // 设置字体大小
+                fd.setStyle(SWT.BOLD); // 设置字体样式为粗体
+            }
+            // 创建新的字体并应用到标签
+            Font newFont = new Font(infoLabel.getDisplay(), fontData);
+            infoLabel.setFont(newFont);
+
+            // 注意：确保在适当的时候释放字体资源
+            infoLabel.addDisposeListener(new DisposeListener() {
+                @Override
+                public void widgetDisposed(DisposeEvent e) {
+                    newFont.dispose();
+                }
+            });
+
+            // 提示文本
+            Label hintLabel = new Label(container, SWT.WRAP);
+            hintLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+            hintLabel.setText(
+            	"Please note:\n" +
+                "• Click [Next] to start installation wizard. \n" +  //[Proceed Now]
+                "• Select [Cancel] to manually trigger from menu: RuyiSDK > Ruyi Installation. \n" +  //[Handle Later] 
+                "• If you already have ruyi, configure path in: Windows > Preferences > RuyiSDK > Ruyi Config > Ruyi Installation Directory. \n\n "
+            );
+            Color tipColor = new Color(hintLabel.getDisplay(), 0, 0, 255);
+            hintLabel.setForeground(tipColor); // 设置标签的字体颜色
+            // 颜色对象使用后需要释放资源
+            hintLabel.addDisposeListener(e -> {
+            	if (!tipColor.isDisposed()) {
+            		tipColor.dispose();
+            	}
+            });
+
+            // 不再检测选项
+            dontCheckAgainCheckbox = new Button(container, SWT.CHECK);
+            dontCheckAgainCheckbox.setText("Don't check and prompt again");
+            dontCheckAgainCheckbox.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+            dontCheckAgainCheckbox.addListener(SWT.Selection, e -> setAutomaticDetection());
+
+            // 按钮区域
+//            Composite buttonComposite = new Composite(container, SWT.NONE);
+//            buttonComposite.setLayoutData(new GridData(SWT.RIGHT, SWT.BOTTOM, true, true));
+//            buttonComposite.setLayout(new GridLayout(2, true));
+
+//            proceedButton = new Button(buttonComposite, SWT.PUSH);
+//            proceedButton.setText("Proceed Now");
+//            proceedButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
+//            proceedButton.addListener(SWT.Selection, e -> onProceed());
+//
+//            laterButton = new Button(buttonComposite, SWT.PUSH);
+//            laterButton.setText("Handle Later");
+//            laterButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+//            laterButton.addListener(SWT.Selection, e -> onLater());
+           
+            setControl(container);
+        }
+
+
+
+        // 保存"不再提示"设置
+        private void setAutomaticDetection() {
+           try {
+				RuyiProperties.setAutomaticDetection(dontCheckAgainCheckbox.getSelection());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+        }
+        
+//        private void onProceed() {
+//            getContainer().showPage(getNextPage());
+//        }
+//
+//        private void onLater() {
+//            getContainer().getShell().close();
+//        }
+    }
     
-    private class WelcomePage extends WizardPage {
-        public WelcomePage() {
+    private class PreparePage extends WizardPage {
+
+        public PreparePage(Mode mode) {
             super("welcomePage");
-            setTitle("Welcome to Ruyi Installation");
-            setDescription("This wizard will guide you through the Ruyi installation process");
+            setTitle(mode == Mode.INSTALL ? 
+                "Welcome to Ruyi Installation" : "Welcome to Ruyi Upgrade");
+            setDescription(mode == Mode.INSTALL ?
+                "This wizard will guide you through the Ruyi installation process" :
+                "This wizard will upgrade your Ruyi installation to the latest version");
         }
 
         @Override
@@ -99,327 +216,91 @@ public class RuyiInstallWizard extends Wizard {
             container.setLayout(new GridLayout(1, false));
             
             Label label = new Label(container, SWT.WRAP);
-            label.setText("The Ruyi provides all the necessary tools and libraries for Ruyi development.\n\n" +
-                        "Before proceeding, please ensure you have:\n" +
-                        "• At least 500MB of free disk space\n" +
-                        "• An active internet connection\n" +
-                        "• Administrator privileges (if installing system-wide)");
             label.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
             
+            String text = mode == Mode.INSTALL ?
+                "The Ruyi SDK provides all necessary tools for Ruyi development. \n\n" +
+                "Before proceeding, please ensure: \n" +
+                "• 500MB+ free disk space \n" +
+                "• Active internet connection \n" +
+                "• Administrator privileges if needed" :
+                "Your Ruyi installation will be upgraded to the latest version. \n\n" +
+                "Please note: \n" +
+                "• The old version will be replaced \n" +
+                "• Existing configurations will be preserved \n" +
+                "• Active internet connection \n" +
+                "• Administrator privileges if needed";
+            
+            label.setText(text);
             setControl(container);
         }
     }
-    
-    private class InstallationCheckPage extends WizardPage {
-        private final RuyiInstallManager installManager;
-        private final RuyiLogger logger;
-        private Label statusLabel;
-        private Button forceInstallCheckbox;
 
-        public InstallationCheckPage(RuyiInstallManager installManager, RuyiLogger logger) {
-            super("installationCheckPage");
-            this.installManager = installManager;
-            this.logger = logger;
-            setTitle("Installation Check");
-            setDescription("Checking your system for Ruyi installation");
-        }
-
-        @Override
-        public void createControl(Composite parent) {
-            Composite container = new Composite(parent, SWT.NONE);
-            container.setLayout(new GridLayout(1, false));
-            
-            statusLabel = new Label(container, SWT.WRAP);
-            statusLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
-            statusLabel.setText("Checking system requirements...");
-            
-            forceInstallCheckbox = new Button(container, SWT.CHECK);
-            forceInstallCheckbox.setText("Force installation (even if already installed)");
-            forceInstallCheckbox.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
-            
-            setControl(container);
-            checkInstallation();
-        }
-
-        private void checkInstallation() {
-            getContainer().getShell().getDisplay().asyncExec(() -> {
-                try {
-                    boolean isInstalled = installManager.isInstalled();
-                    if (isInstalled) {
-                        statusLabel.setText("Ruyi is already installed on your system.");
-                        setPageComplete(true);
-                    } else {
-                        statusLabel.setText("No existing Ruyi installation found.");
-                        setPageComplete(true);
-                    }
-                } catch (Exception e) {
-                    logger.logError("Installation check failed", e);
-                    statusLabel.setText("Error checking installation: " + e.getMessage());
-                    setPageComplete(false);
-                }
-            });
-        }
-
-        public boolean isForceInstall() {
-            return forceInstallCheckbox.getSelection();
-        }
-    }
-    
-    private class VersionComparisonPage extends WizardPage {
-        private final RuyiInstallManager installManager;
-        private final RuyiLogger logger;
-        private VersionCompareComposite compareComposite;
-
-        public VersionComparisonPage(RuyiInstallManager installManager, RuyiLogger logger) {
-            super("versionComparisonPage");
-            this.installManager = installManager;
-            this.logger = logger;
-            setTitle("Version Comparison");
-            setDescription("Compare your current version with the latest available");
-        }
-
-        @Override
-        public void createControl(Composite parent) {
-            Composite container = new Composite(parent, SWT.NONE);
-            container.setLayout(new GridLayout(1, false));
-            
-            compareComposite = new VersionCompareComposite(container);
-            compareComposite.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-           
-            setControl(container);
-            checkVersions();
-        }
-
-        private void checkVersions() {
-            getContainer().getShell().getDisplay().asyncExec(() -> {
-                try {
-//                    String currentVersion = installManager.getInstalledVersion();
-//                    String latestVersion = installManager.getLatestVersion();
-//                    String changelog = installManager.getChangelog(latestVersion);
-                	RuyiVersion currentVersion = RuyiManager.getInstalledVersion();
-                	String archSuffix = SystemInfo.detectArchitecture().getSuffix();
-                	RuyiReleaseInfo latestRelease = RuyiAPI.getLatestRelease(archSuffix);
-                    String latestVersion = latestRelease.getVersion();//RuyiManager.getLatestVersion().toString();
-                    String changelog = "[Here Need API of 0.32.0 chagelog]";
-//                    compareComposite.setVersions(currentVersion, lastestVersion, changelog);
-                    
-                    compareComposite.setVersions(
-                        currentVersion != null ? currentVersion.toString() : "Not installed", 
-                        latestVersion,
-                        changelog
-                    );
-                    compareComposite.highlightDifferences();
-                    
-                    setPageComplete(true);
-                } catch (Exception e) {
-                    logger.logError("Version check failed", e);
-                    setErrorMessage("Failed to check versions: " + e.getMessage());
-                    setPageComplete(false);
-                }
-            });
-        }
-    }
-    
     private class ConfigurationPage extends WizardPage {
-        private final RuyiInstallManager installManager;
-        private final RuyiLogger logger;
-        private Text ruyiInstallPathText;
-        
-        private Button[] packageIndexRepoCheckboxes;
-        private Button customCheckbox;
-        private Text repoCustomUrlText;
-        private RepoConfig[] repoConfigs;
-        
-        private Button telemetryCheckbox;
-        
+        private RuyiInstallPathPreference installPref;
+        private RepoConfigPreference repoPref;
+        private TelemetryPreference telemetryPref;
 
-
-        public ConfigurationPage(RuyiInstallManager installManager, RuyiLogger logger) {
+        public ConfigurationPage() {
             super("configurationPage");
-            this.installManager = installManager;
-            this.logger = logger;
             setTitle("Configuration");
-            setDescription("Configure Ruyi installation options");
+            setDescription("Configure installation options");
         }
 
         @Override
         public void createControl(Composite parent) {
             Composite container = new Composite(parent, SWT.NONE);
             container.setLayout(new GridLayout(1, false));
-            
-            // 安装路径
-            createRuyiInstallPathConfigUI(container);
-            
-            // 存储库选择
-            createPackageIndexRepoUI(container);
-            
-            // 遥测选项
-            createTelemetryConfigUI(container);
-            
-            
+
+            // 安装路径配置
+            installPref = new RuyiInstallPathPreference(container);
+            installPref.createSection();
+
+            // 仓库配置
+            repoPref = new RepoConfigPreference(container);
+            repoPref.createSection();
+
+            // 遥测配置
+            telemetryPref = new TelemetryPreference(container);
+            telemetryPref.createSection();
+
             setControl(container);
-        }
-
-        private void browseForInstallPath() {
-            DirectoryDialog dialog = new DirectoryDialog(getShell());
-            dialog.setText("Select Installation Directory");
-            String path = dialog.open();
-            if (path != null) {
-                ruyiInstallPathText.setText(path);   //用户自定义安装路径回显
-            }
-            
-            //根据用户修改的路径设置安装路径
-            installManager.setInstallPath(path);
-        }
-        
-        private void createRuyiInstallPathConfigUI(Composite parent){
-        	Group group = new Group(parent, SWT.NONE);
-        	group.setText("Installation Path:");
-        	group.setLayout(new GridLayout(2, false));
-            group.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-            
-            ruyiInstallPathText = new Text(group, SWT.BORDER);
-            ruyiInstallPathText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-            ruyiInstallPathText.setText(installManager.getDefaultInstallPath());   //设置默认安装路径 ~/.local/bin
-            
-            Button browseButton = new Button(group, SWT.PUSH);
-            browseButton.setText("Browse...");
-            browseButton.addListener(SWT.Selection, e -> browseForInstallPath());  //提供用户自定义安装路径
-        }
-        
-        private void createPackageIndexRepoUI(Composite parent) {
-            Group group = new Group(parent, SWT.NONE);
-            group.setText("Package Index Repository");
-            group.setLayout(new GridLayout(1, false));
-            group.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-            
-            repoConfigs = new RepoConfig[] {
-        	    new RepoConfig("China ISCAS Mirror", "https://mirror.iscas.ac.cn/git/ruyisdk/packages-index.git",1),
-        	    new RepoConfig("GitHub Repo", "https://github.com/ruyisdk/packages-index.git",2),
-        	    new RepoConfig("Custom", "",0) 
-        	};
-            packageIndexRepoCheckboxes = new Button[repoConfigs.length];
-            
-            for (int i = 0; i < repoConfigs.length; i++) {
-                RepoConfig config = repoConfigs[i];
-                
-                if("Custom".equals(config.getName())) {
-                	Composite row = new Composite(group, SWT.NONE);
-                    row.setLayout(new GridLayout(2, false));
-                    row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-                    
-                    packageIndexRepoCheckboxes[i] = new Button(row, SWT.CHECK);
-                    packageIndexRepoCheckboxes[i].setText(config.getName() + ": " + config.getUrl());
-                    
-                    repoCustomUrlText = new Text(row, SWT.BORDER);
-                	repoCustomUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-                	repoCustomUrlText.setEnabled(false);
-                    
-                    // 绑定自定义仓库复选框状态变化
-                	customCheckbox = packageIndexRepoCheckboxes[i];
-                    packageIndexRepoCheckboxes[i].addListener(SWT.Selection, e -> {
-                    	repoCustomUrlText.setEnabled(customCheckbox.getSelection());
-                    });
-                	
-                }else {
-                	Composite row = new Composite(group, SWT.NONE);
-                    row.setLayout(new GridLayout(1, false));
-                    row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-                    
-                    packageIndexRepoCheckboxes[i] = new Button(row, SWT.CHECK);
-                    packageIndexRepoCheckboxes[i].setText(config.getName() + ": " + config.getUrl());
-                    packageIndexRepoCheckboxes[i].setSelection(true);
-                }
-            }
-        }
-        public RepoConfig[] getSelectedRepoConfigs() {
-            List<RepoConfig> selectedConfigs = new ArrayList<>();
-            
-            for (int i = 0; i < packageIndexRepoCheckboxes.length; i++) {
-                if (packageIndexRepoCheckboxes[i].getSelection()) {
-                    // 如果是自定义仓库，更新URL
-                    if ("Custom".equals(repoConfigs[i].getName())) {
-                        repoConfigs[i].setUrl(repoCustomUrlText.getText().trim());
-                    }
-                    // 只有当URL不为空时才添加到选中列表
-                    if (!repoConfigs[i].getUrl().isEmpty()) {
-                        selectedConfigs.add(repoConfigs[i]);
-                    }
-                }
-            }
-            // Sort by priority (ascending order)
-            selectedConfigs.sort(Comparator.comparingInt(RepoConfig::getPriority));
-            
-            return selectedConfigs.toArray(new RepoConfig[0]);
-        }
-        
-        private void createTelemetryConfigUI(Composite parent) {
-            Group group = new Group(parent, SWT.NONE);
-            group.setText("Telemetry:");
-            group.setLayout(new GridLayout(1, false));
-            group.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-            telemetryCheckbox = new Button(group, SWT.CHECK);
-            telemetryCheckbox.setText("Send anonymous usage data to help improve RuyiSDK");
-            telemetryCheckbox.setSelection(true);
-            telemetryCheckbox.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
-
-
-            // 创建一个Link控件来显示描述文本和链接
-            Link link = new Link(group, SWT.WRAP);
-            String description = "RuyiSDK 遥测数据秉持最小化收集信息的原则，尽可能避免收集用户个人身份信息，且采用匿名化方式收集信息用于产品的运营和服务的提升。可前往 Windows > Preferences > Ruyi 中进行设置修改。详见";
-            String linkText = "<a href=\"https://ruyisdk.org/docs/legal/privacyPolicy\">RuyiSDK隐私政策</a>";
-            link.setText(description + " " + linkText);
-//            link.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-         // 设置Link控件的布局数据，控制宽度
-            GridData linkLayoutData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-            linkLayoutData.widthHint = 300; // 设置固定宽度，根据需要调整
-            link.setLayoutData(linkLayoutData);
-
-            // 添加链接点击事件
-            link.addSelectionListener(new SelectionAdapter() {
-                @Override
-                public void widgetSelected(SelectionEvent event) {
-                    // 在默认浏览器中打开链接
-                    Program.launch(event.text);
-                }
-            });
-
-            // 设置链接颜色为蓝色
-//            link.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_BLUE));
-        }
-        
-        @Override
-        public boolean isPageComplete() {
-            return ruyiInstallPathText.getText() != null && !ruyiInstallPathText.getText().isEmpty();
         }
 
         public String getInstallPath() {
-            return ruyiInstallPathText.getText();
+            return installPref.getTextPath();
+        }
+
+        public RepoConfig[] getSelectedRepos() {
+            return repoPref.getSelectedRepos();
         }
 
         public boolean isTelemetryEnabled() {
-            return telemetryCheckbox.getSelection();
+            return telemetryPref.isTelemetryEnabled();
         }
     }
-    
-    private class InstallationPage extends WizardPage {
-        private final RuyiInstallManager installManager;
-        private final RuyiLogger logger;
-        private InstallProgressComposite progressComposite;
 
-        public InstallationPage(RuyiInstallManager installManager, RuyiLogger logger) {
+    private class InstallationPage extends WizardPage {
+        private final Mode mode;
+        private InstallProgressComposite progressComp;
+        private RuyiInstallManager installManager;
+
+        public InstallationPage(Mode mode) {
             super("installationPage");
-            this.installManager = installManager;
-            this.logger = logger;
-            setTitle("Installation");
-            setDescription("Installing Ruyi on your system");
+            this.mode = mode;
+//            this.installManager = Activator.getDefault().getRuyiCore().getInstallManager();
+            this.installManager = new RuyiInstallManager(Activator.getDefault().getLogger());
+            setTitle(mode == Mode.INSTALL ? 
+                "Installing Ruyi" : "Upgrading Ruyi");
+            setDescription(mode == Mode.INSTALL ?
+                "Please wait while Ruyi is being installed" :
+                "Upgrading to the latest version...");
         }
 
         @Override
         public void createControl(Composite parent) {
-            progressComposite = new InstallProgressComposite(parent);
-            setControl(progressComposite);
+            progressComp = new InstallProgressComposite(parent);
+            setControl(progressComp);
         }
 
         @Override
@@ -431,75 +312,73 @@ public class RuyiInstallWizard extends Wizard {
         }
 
         private void startInstallation() {
-            getContainer().getShell().getDisplay().asyncExec(() -> {
-                try {
-                    ConfigurationPage configPage = (ConfigurationPage) getWizard().getPage("configurationPage");
-                    
-                    installManager.setInstallPath(configPage.getInstallPath());
-                    installManager.setRepoUrls(configPage.getSelectedRepoConfigs());
-                    installManager.setTelemetryEnabled(configPage.isTelemetryEnabled());
-                    
-                    performInstallation();
-                } catch (Exception e) {
-                    logger.logError("Installation failed", e);
-                    progressComposite.appendLog("Error: " + e.getMessage());
-                    setPageComplete(false);
-                }
-            });
-        }
-
-        private void performInstallation() {
-            progressComposite.appendLog("Starting Ruyi installation...");
+            ConfigurationPage configPage = (ConfigurationPage) getWizard().getPage("configurationPage");
             
-            Job installJob = Job.create("Install Ruyi", monitor -> {
+            installManager.setInstallPath(configPage.getInstallPath());
+            installManager.setRepoUrls(configPage.getSelectedRepos());
+            installManager.setTelemetryEnabled(configPage.isTelemetryEnabled());
+
+            progressComp.appendLog("Starting " + 
+                (mode == Mode.INSTALL ? "installation" : "upgrade") + "...");
+            
+            Job.create("Ruyi " + mode.name(), monitor -> {
                 try {
                     installManager.install(monitor, new InstallationListener() {
                         @Override
                         public void progressChanged(int percent, String message) {
-                            progressComposite.updateProgress(percent, message);
+                            updateProgress(percent, message);
                         }
 
                         @Override
                         public void logMessage(String message) {
-                            progressComposite.appendLog(message);
+                            appendLog(message);
                         }
                     });
                     
-                    getContainer().getShell().getDisplay().asyncExec(() -> {
-                        progressComposite.appendLog("Installation completed successfully!");
+                    Display.getDefault().asyncExec(() -> {
+                        progressComp.appendLog("Operation completed successfully!");
                         setPageComplete(true);
                     });
                     
                     return Status.OK_STATUS;
                 } catch (Exception e) {
-                    logger.logError("Installation failed", e);
-                    getContainer().getShell().getDisplay().asyncExec(() -> {
-                        progressComposite.appendLog("Installation failed: " + e.getMessage());
+                    Display.getDefault().asyncExec(() -> {
+                        progressComp.appendLog("Failed: " + e.getMessage());
                         setPageComplete(false);
+                        StatusUtil.logAndShow(mode + " failed", e);
                     });
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Installation failed", e);
+                    return StatusUtil.createErrorStatus(mode + " failed", e);
                 }
+            }).schedule();
+        }
+
+        private void updateProgress(int percent, String message) {
+            Display.getDefault().asyncExec(() -> {
+                progressComp.updateProgress(percent, message);
             });
-            
-            installJob.schedule();
+        }
+
+        private void appendLog(String message) {
+            Display.getDefault().asyncExec(() -> {
+                progressComp.appendLog(message);
+            });
         }
 
         public boolean performFinish() {
             return isPageComplete();
         }
     }
-    
-    private class CompletionPage extends WizardPage {
-        private final RuyiInstallManager installManager;
-        private final RuyiLogger logger;
-        private Label completionLabel;
 
-        public CompletionPage(RuyiInstallManager installManager, RuyiLogger logger) {
+    private class CompletionPage extends WizardPage {
+        private final Mode mode;
+
+        public CompletionPage(Mode mode) {
             super("completionPage");
-            this.installManager = installManager;
-            this.logger = logger;
-            setTitle("Installation Complete");
-            setDescription("Ruyi has been successfully installed");
+            this.mode = mode;
+            setTitle("Operation Complete");
+            setDescription(mode == Mode.INSTALL ?
+                "Ruyi has been successfully installed" :
+                "Ruyi has been upgraded successfully");
         }
 
         @Override
@@ -507,22 +386,31 @@ public class RuyiInstallWizard extends Wizard {
             Composite container = new Composite(parent, SWT.NONE);
             container.setLayout(new GridLayout(1, false));
             
-            completionLabel = new Label(container, SWT.WRAP);
-            completionLabel.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-            completionLabel.setText("Ruyi has been successfully installed on your system.\n\n" +
-                                 "You can now start using Ruyi for your projects.");
+            Label label = new Label(container, SWT.WRAP);
+            label.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
             
+            String text = mode == Mode.INSTALL ?
+                "Ruyi has been successfully installed!\n\n" +
+                "Next steps:\n" +
+                "• Restart your IDE to apply changes\n" +
+                "• Configure project SDK settings\n" +
+                "• Visit documentation for tutorials" :
+                "Ruyi has been upgraded to the latest version.\n\n" +
+                "What's new:\n" +
+                "• Improved performance\n" +
+                "• New API features\n" +
+                "• Bug fixes";
+            
+            label.setText(text);
             setControl(container);
         }
 
         @Override
         public boolean isPageComplete() {
-            return true;
+            return true; // 完成页始终可进入
         }
     }
-    
-    // ========== 辅助接口 ==========
-    
+
     public interface InstallationListener {
         void progressChanged(int percent, String message);
         void logMessage(String message);
